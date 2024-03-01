@@ -1,100 +1,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include<iostream>
-#include<fstream>
-#include <sstream>
 #include "Renderer.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
-struct ShaderProgramSource
-{
-    std::string VertexSource;
-    std::string FragmentSource;
-};
-ShaderProgramSource ParseShader(const std::string& filepath)
-{
-    std::ifstream stream(filepath);
-    enum  class ShaderType
-    {
-        NONE = -1, VERTEX = 0, FRAGMENT =1
-    };
-    std::string line;
-    std::stringstream ss[2];
-    ShaderType type = ShaderType::NONE;
-    while (std::getline(stream, line))
-    {
-        if (line.find("#shader") != std::string::npos)
-        {
-            if (line.find("vertex") != std::string::npos)
-            {
-                type = ShaderType::VERTEX;
-            }
-            else if (line.find("shader") != std::string::npos)
-            {
-                type = ShaderType::FRAGMENT;
-            }
-        }
-        else 
-        {
-            if(type != ShaderType::NONE)
-                ss[(int)type] << line << '\n';
-        }
-    }
-    return { ss[0].str(),ss[1].str()};
-}
-static unsigned int CompileShader(unsigned int type, const char* source) 
-{
-    unsigned int id = glCreateShader(type);
-    glShaderSource(id, 1, &source,0);
-    glCompileShader(id);
-
-    //error checking
-    int isGood;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &isGood);
-    if (isGood == GL_FALSE)
-    {   
-        int length;
-        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-        char* log =(char*) alloca(length);
-        glGetShaderInfoLog(id, 1024, 0, log);
-        std::cout << "Error in Compilation" << "\n" << log << std::endl;
-        return 0;
-    }
-    else
-    {
-        std::cout << "Shader Compiled Succesfuly!" << std::endl;
-    }
-    
-    return id;
-}
-static unsigned int CreateShader(const char* vertextShader, const char* fragmentShader)
-{
-    unsigned int program = glCreateProgram();
-    unsigned int vs = CompileShader(GL_VERTEX_SHADER,vertextShader);
-    unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
-    glLinkProgram(program);
-
-    int isLinked;
-
-    glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
-    if (isLinked == GL_FALSE)
-    {
-        int length;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-        char* log = (char*)alloca(length);
-        glGetProgramInfoLog(program, 1024, 0, log);
-        std::cout << "There was an error while linking. \n" << log << std::endl;
-        return 0;
-    }
-    else
-    {
-        std::cout << "Program Linked Succesfuly!" << std::endl;
-    }
-    return program;
-}
+#include "Shader.h"
 void processInput(GLFWwindow* window , float* gradientScale)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -111,6 +22,9 @@ void processInput(GLFWwindow* window , float* gradientScale)
 
 int main(void)
 {
+    int y = 5;
+    int* z = &y;
+    const int* const* const x = &z;
     GLFWwindow* window;
 
     /* Initialize the library */
@@ -130,49 +44,62 @@ int main(void)
     if (glewInit() != GLEW_OK)
         std::cout << "GLEW NOT OK" << std::endl;
     std::cout << glGetString(GL_VERSION) << std::endl;
-    
+    glfwSwapInterval(1);
 
-    ShaderProgramSource source = ParseShader("res/shaders/basics.shader");
     VertexArray va;
-    
     unsigned int indiceis[6] = {
-        0,1,2,
-        3,1,2
+        3,4,5,
+        0,1,2
     };
+    const float depth = 0.45;
     float pos[] = {
-       -0.5f,-0.5f,
-       -0.5f, 0.5f,
-        0.5f,-0.5f,
-        0.5f, 0.5f
-    };
-    VertexBuffer vb((void*)pos, sizeof(pos));
-    vb.Bind();  
+       -1.0f, 1.0f,-0.5f,
+        1.0f, 0.0f,0.0f,
 
+        1.0f, 1.0f, -0.5f,
+        1.0f, 0.0f,0.0f,
+
+        0.0f,-1.0f, -1.0f,
+        1.0f, 0.0f,0.0f,
+
+
+
+       -1.0f,-1.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+
+        1.0f,-1.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+
+        0.0f, 1.0f, -1.0f,
+        0.0f, 0.0f, 1.0f
+    };
+    GLCall(glEnable(GL_DEPTH_TEST));
+    VertexBuffer vb((void*)pos, sizeof(pos));
     IndexBuffer ib(indiceis, 6);
-  
     VertexBufferLayout layout;
-    layout.Push<float>(2);
+    layout.Push<float>(3);
+    layout.Push<float>(3);
     va.AddBuffer(vb, layout);
-    va.Bind();  
-    ib.Bind();
-    va.UnBind();
     va.Bind();
-   
+    ib.Bind();
+
     //shader program
-    unsigned int program = CreateShader(source.VertexSource.c_str(), source.FragmentSource.c_str());
-    GLCall(glUseProgram(program));
+    Shader shader = Shader("res/shaders/basics.shader");
+    shader.Bind();
     /* Loop until the user closes the window */
-    float color = 0.5;
+    float color = 0.5f;
+    float increment = 0.05f;
     while (!glfwWindowShouldClose(window))
     {
-        processInput(window,&color);
+        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+        processInput(window, &color);
         /* Render here */
-
-        glClear(GL_COLOR_BUFFER_BIT);
-        //glUniform1f(glGetUniformLocation(program, "color"), color);
-        GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT,0));
+        //shader.SetUniform4f("color", color, 0.3f, 0.8f, 1.0f);
+        GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
         glEnd();
-
+        color += increment;
+        ;       if (color > 1) increment = -0.05f;
+        else if (color < 0) increment = 0.05f;
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
 
