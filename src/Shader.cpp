@@ -36,6 +36,11 @@ void Shader::SetUniform1f(const std::string& name, float v)
     glUniform1f(GetUniformLocation(name), v);
 }
 
+unsigned int Shader::getProgramId()
+{
+    return m_ProgramID;
+}
+
 unsigned int Shader::CreateShader(const char* vertextShader, const char* fragmentShader)
 {
     unsigned int program = glCreateProgram();
